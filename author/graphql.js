@@ -14,62 +14,44 @@ module.exports = function ({ typeDefs, resolvers }) {
       createResolvers(schema) {
         const remoteResolvers = {};
 
-        // const query = schema.getQueryType();
-        // const mutation = schema.getMutationType();
-        // const subscription = schema.getSubscriptionType();
+        const createResolversFor = (root, fields) => {
+          for (const [name] of fields) {
+            const operation = `${root}.${name}`;
 
-        for (const [name, value] of Object.entries(schema.getQueryType().getFields())) {
-          this.logger.info(`defining resolver for Query.${name}`);
-          if (!resolvers.Query || !resolvers.Query[name]) {
-            if (!remoteResolvers.Query) {
-              remoteResolvers.Query = {};
-            }
-            remoteResolvers.Query[name] = async (_, args, ctx, info) => {
-              this.logger.info(`calling book.Query.${name}`);
-              try {
-                return await this.broker.call(`book.Query.${name}`, { //TODO: fix
-                  args,
-                  context: { __debug: 'nothing' },
-                  info
-                });
+            this.logger.debug(`defining resolver for ${operation}`);
+
+            if (!resolvers.Query || !resolvers.Query[name]) {
+              if (!remoteResolvers.Query) {
+                remoteResolvers.Query = {};
               }
-              catch (error) {
-                const clean = error;
-                delete clean.ctx;
-                throw clean;
+              remoteResolvers.Query[name] = async (_, args, ctx, info) => {
+                this.logger.debug(`calling book.${operation}`);
+
+                try {
+                  return await this.broker.call(`book.${operation}`, { //TODO: fix service name
+                    args,
+                    context: { __debug: 'FIXME' },
+                    info
+                  });
+                }
+                catch (error) {
+                  const clean = error;
+                  delete clean.ctx;
+                  throw clean;
+                }
               }
             }
           }
-        }
+        };
 
-        for (const [name, value] of Object.entries(schema.getMutationType().getFields())) {
-          this.logger.info(`defining resolver for Mutation.${name}`);
-          if (!resolvers.Mutation || !resolvers.Mutation[name]) {
-            if (!remoteResolvers.Mutation) {
-              remoteResolvers.Mutation = {};
-            }
-            remoteResolvers.Mutation[name] = async (_, args, ctx, info) => {
-              this.logger.info(`calling book.Mutation.${name}`);
-              try {
-                return await this.broker.call(`book.Mutation.${name}`, { //TODO: fix
-                  args,
-                  context: { __debug: 'nothing' },
-                  info
-                });
-              }
-              catch (error) {
-                const clean = error;
-                delete clean.ctx;
-                throw clean;
-              }
-            }
-          }
-        }
+        createResolversFor('Query', Object.entries(schema.getQueryType().getFields()));
+        createResolversFor('Mutation', Object.entries(schema.getMutationType().getFields()));
+        //createResolversFor('Subscription', Object.entries(schema.getSubscriptionType().getFields()));
 
         this.resolvers = mergeResolvers([remoteResolvers, resolvers]);
       },
       createSchema(types = []) {
-        this.logger.info(`creating graphql schema.`);
+        this.logger.debug(`creating graphql schema.`);
 
         this.graphqlSchema = makeExecutableSchema({
           typeDefs: mergeTypeDefs([this.metadata.typeDefs, ...types.map(({ typeDefs }) => typeDefs)])
